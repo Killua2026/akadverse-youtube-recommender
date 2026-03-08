@@ -1,3 +1,4 @@
+# type: ignore
 import os #For interacting with the operating system, such as accessing environment variables.
 import faiss #Facebook AI Similarity Search library for efficient similarity search and clustering of dense vectors.
 import numpy as np #For numerical operations, especially for handling the vector embeddings and preparing them for FAISS.
@@ -8,6 +9,7 @@ from pymongo import MongoClient #MongoDB client for connecting to a MongoDB data
 from fastapi import FastAPI, BackgroundTasks, HTTPException #FastAPI is a modern, fast (high-performance) web framework for building APIs with Python. BackgroundTasks allows us to run tasks in the background without blocking the main thread, which is useful for operations like fetching videos or building the FAISS index that might take some time. HTTPException is used to return proper HTTP error responses.
 from pydantic import BaseModel #Pydantic is used for data validation and settings management using Python type annotations. BaseModel is the base class for creating data models that can be used to define the structure of request bodies in FastAPI endpoints.
 import uvicorn #ASGI server for running FastAPI applications. It is used to serve the API when we run the script directly.
+
 
 # Load environment variables (your API key)
 load_dotenv()
@@ -257,6 +259,54 @@ def process_business_registration(student_id: str, business_type: str, top_k: in
         print(f"[BACKGROUND TASK] Successfully saved business playlist for {student_id}!")
     except Exception as e:
         print(f"[ERROR] Failed to save business playlist to MongoDB: {e}")
+        
+def process_assessment_completed(student_id: str, topic: str, score: float, top_k: int = 3):
+    """
+    Background task for when a student completes an assessment.
+    If the score is low, fetches remedial videos for the topic.
+    """
+    try:
+        # Only trigger remedial videos if the score is below a threshold (e.g., 60%)
+        if score >= 60.0:
+            print(f"[BACKGROUND TASK] Student {student_id} scored well ({score}%) on '{topic}'. No remedial videos needed.")
+            return
+            
+        search_query = f"Remedial explanation of {topic} basics"
+        print(f"[BACKGROUND TASK] Curating remedial resources for {student_id} on '{topic}' due to low score ({score}%)")
+        
+        videos = fetch_youtube_videos(search_query, max_results=5)
+        if not videos:
+            print(f"[BACKGROUND TASK] No videos fetched for '{topic}'. Aborting.")
+            return
+            
+        index = build_faiss_index(videos)
+        
+        context_vector = model.encode([f"Help me understand {topic} from the beginning"])
+        context_vector = np.array(context_vector).astype('float32').reshape(1, -1)
+        distances, indices = index.search(context_vector, top_k)
+        
+        results = []
+        for i in range(top_k):
+            video_idx = indices[0][i]
+            matched_video = videos[video_idx]
+            results.append({
+                "title": matched_video['title'],
+                "video_id": matched_video['id'],
+                "distance_score": float(distances[0][i])
+            })
+            
+        playlist_document = {
+            "student_id": student_id,
+            "context": f"Auto-generated remedial playlist for: {topic}",
+            "recommendations": results,
+            "trigger_event": "assessment.completed"
+        }
+        
+        playlists_collection.insert_one(playlist_document)
+        print(f"[BACKGROUND TASK] Successfully saved remedial playlist for {student_id}!")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed in process_assessment_completed: {e}")
 
 
 
@@ -407,8 +457,36 @@ def handle_platform_event(event: PlatformEvent, background_tasks: BackgroundTask
             "message": f"Event '{event.event_type}' received. Curating startup resources for '{business_type}' in the background."
         }
         
+    elif event.event_type == "assessment.completed":
+        topic = event.payload.get("topic")
+        score = event.payload.get("score")
+        
+        if not topic or score is None:
+            raise HTTPException(status_code=400, detail="Missing 'topic' or 'score' in payload")
+            
+        try:
+            score_float = float(score)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="'score' must be a number")
+            
+        background_tasks.add_task(
+            process_assessment_completed, 
+            student_id=event.student_id, 
+            topic=topic,
+            score=score_float
+        )
+        
+        return {
+            "status": "success", 
+            "message": f"Event '{event.event_type}' received. Processing remedial check for '{topic}'."
+        }
+        
     else:
-        return {"error": f"Unknown event type: {event.event_type}"}
+        # Acknowledge the event but ignore it, as it belongs to other AI components
+        return {
+            "status": "ignored", 
+            "message": f"Event '{event.event_type}' is not processed by the YouTube Recommender."
+        }
 
 if __name__ == "__main__":
     # This tells uvicorn to run our FastAPI 'app' on port 8000
