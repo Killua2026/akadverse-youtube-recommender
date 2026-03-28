@@ -1,0 +1,9 @@
+faiss-cpu
+fastapi
+google-api-python-client
+numpy
+pydantic
+pymongo
+python-dotenv
+sentence-transformers
+uvicorn

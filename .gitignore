@@ -1,2 +1,12 @@
+# Python bytecode and cache directories
+__pycache__/
+*.pyc
+
+# Virtual environments
 venv/
+
+# Environment variable files (secrets)
 .env
+
+# Editor settings
+.vscode/
