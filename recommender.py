@@ -489,5 +489,5 @@ def handle_platform_event(event: PlatformEvent, background_tasks: BackgroundTask
         }
 
 if __name__ == "__main__":
-    # This tells uvicorn to run our FastAPI 'app' on port 8000
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # This tells uvicorn to run our FastAPI 'app' on port 8003
+    uvicorn.run(app, host="127.0.0.1", port=8003)

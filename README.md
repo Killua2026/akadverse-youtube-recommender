@@ -1,6 +1,6 @@
 # AkadVerse: YouTube Integration Recommender
 
-**Tier 3 Neural Network / Deep Learning | Microservice Port: `8000`**
+**Tier 3 Neural Network / Deep Learning | Microservice Port: `8003`**
 
 Automates personalized learning by generating context-aware YouTube playlists for students based on course registration, career paths, and academic performance.
 
@@ -114,7 +114,7 @@ MONGO_URI=your_mongodb_connection_string_here
 ## Running the Server
 
 ```bash
-uvicorn recommender:app --host 127.0.0.1 --port 8000 --reload
+uvicorn recommender:app --host 127.0.0.1 --port 8003 --reload
 ```
 
 Expected terminal output:
@@ -157,7 +157,7 @@ Expected terminal output:
 ## Testing with Swagger UI
 
 With the server running, open:
-[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+[http://127.0.0.1:8003/docs](http://127.0.0.1:8003/docs)
 
 ## Example Test Inputs
 
